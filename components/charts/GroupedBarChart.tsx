@@ -44,15 +44,15 @@ export function GroupedBarChart({ title, height = 400 }: GroupedBarChartProps) {
 
     // If showLevel1Totals is enabled in geography mode, also include Level 1 aggregated records
     if (filters.viewMode === 'geography-mode' && filters.showLevel1Totals) {
-      const level1Records = dataset.filter(record => 
+      const level1Records = dataset.filter(record =>
         record.aggregation_level === 1 &&
         record.segment_type === filters.segmentType &&
         (filters.geographies.length === 0 || filters.geographies.includes(record.geography))
       )
-      
+
       // Merge level 1 records with filtered data, avoiding duplicates
       const existingKeys = new Set(filtered.map(r => `${r.geography}::${r.segment}::${r.segment_type}`))
-      const newLevel1Records = level1Records.filter(r => 
+      const newLevel1Records = level1Records.filter(r =>
         !existingKeys.has(`${r.geography}::${r.segment}::${r.segment_type}`)
       )
       filtered = [...filtered, ...newLevel1Records]
@@ -63,16 +63,38 @@ export function GroupedBarChart({ title, height = 400 }: GroupedBarChartProps) {
       sampleFiltered: filtered.slice(0, 2)
     })
 
+    // Determine effective aggregation level for chart preparation
+    // When user has selected segments, we should show them without forced aggregation
+    // When no segments are selected, default to Level 2 to show parent segments
+    let effectiveAggregationLevel = filters.aggregationLevel
+    const advancedSegments = filters.advancedSegments || []
+    const segmentsFromSameType = advancedSegments.filter(
+      (seg: any) => seg.type === filters.segmentType
+    )
+    const hasUserSelectedSegments = segmentsFromSameType.length > 0
+
+    // IMPORTANT: If user has explicitly selected segments (via Add Segment button),
+    // set effectiveAggregationLevel to null to show sub-segments individually
+    // This ensures selecting "Parenteral" shows Intravenous, Intramuscular, Subcutaneous separately
+    if (hasUserSelectedSegments) {
+      // User selected segments - DON'T force Level 2, use null to show individual records
+      effectiveAggregationLevel = null
+    } else if (effectiveAggregationLevel === null || effectiveAggregationLevel === undefined) {
+      // No segments selected - use Level 2 to show parent segments aggregated
+      effectiveAggregationLevel = 2
+    }
+
     // Prepare chart data
-    // Use intelligent multi-level data when aggregationLevel is null (automatic mode)
-    // This allows displaying data from different levels together on one graph
-    const prepared = filters.aggregationLevel === null
-      ? prepareIntelligentMultiLevelData(filtered, filters)
-      : prepareGroupedBarData(filtered, filters)
+    // Use prepareGroupedBarData when we have an effective aggregation level (handles Level 2 aggregation)
+    // This ensures parent segments are shown instead of sub-segments when no segment is selected
+    const prepared = effectiveAggregationLevel !== null
+      ? prepareGroupedBarData(filtered, filters)
+      : prepareIntelligentMultiLevelData(filtered, filters)
 
     console.log('📊 Prepared chart data:', {
       preparedLength: prepared.length,
-      samplePrepared: prepared.slice(0, 2)
+      samplePrepared: prepared.slice(0, 2),
+      effectiveAggregationLevel
     })
 
     // Determine if we're using stacked bars
@@ -82,18 +104,36 @@ export function GroupedBarChart({ title, height = 400 }: GroupedBarChartProps) {
     let series: string[] = []
     let stackedSeries: { primary: string[], secondary: string[] } | null = null
 
+    // Extract series from prepared data keys instead of from filtered records
+    // This ensures we use the aggregated keys (e.g., "Parenteral") not the original segment names (e.g., "Intravenous")
+    const extractSeriesFromPreparedData = (): string[] => {
+      if (prepared.length === 0) return []
+
+      // Get all unique keys from prepared data (excluding 'year')
+      const allKeys = new Set<string>()
+      prepared.forEach(dataPoint => {
+        Object.keys(dataPoint).forEach(key => {
+          if (key !== 'year') {
+            allKeys.add(key)
+          }
+        })
+      })
+
+      return Array.from(allKeys)
+    }
+
     if (isStacked) {
       // For stacked bars, we need to identify primary and secondary dimensions
       if (filters.viewMode === 'segment-mode') {
         // Primary: segments (bar groups), Secondary: geographies (stacks)
         const uniqueSegments = getUniqueSegments(filtered)
         const uniqueGeographies = getUniqueGeographies(filtered)
-        
+
         stackedSeries = {
           primary: uniqueSegments,
           secondary: uniqueGeographies
         }
-        
+
         // Create series for each segment::geography combination
         series = []
         uniqueSegments.forEach(segment => {
@@ -105,12 +145,12 @@ export function GroupedBarChart({ title, height = 400 }: GroupedBarChartProps) {
         // Primary: geographies (bar groups), Secondary: segments (stacks)
         const uniqueGeographies = getUniqueGeographies(filtered)
         const uniqueSegments = getUniqueSegments(filtered)
-        
+
         stackedSeries = {
           primary: uniqueGeographies,
           secondary: uniqueSegments
         }
-        
+
         // Create series for each geography::segment combination
         series = []
         uniqueGeographies.forEach(geo => {
@@ -120,15 +160,18 @@ export function GroupedBarChart({ title, height = 400 }: GroupedBarChartProps) {
         })
       }
     } else {
-      // Non-stacked: original logic
+      // Non-stacked: Get series from prepared data to ensure we use aggregated keys
       // Special handling for Level 1: Show geographies instead of segments
-      if (filters.aggregationLevel === 1) {
+      if (effectiveAggregationLevel === 1) {
         // Level 1 shows total aggregation - group by geography
         series = getUniqueGeographies(filtered)
+      } else if (filters.viewMode === 'segment-mode') {
+        // For segment mode with Level 2 aggregation, extract keys from prepared data
+        // This ensures we get "Parenteral" instead of "Intravenous", "Intramuscular", etc.
+        series = extractSeriesFromPreparedData()
       } else {
-        series = filters.viewMode === 'segment-mode'
-          ? getUniqueSegments(filtered)
-          : getUniqueGeographies(filtered)
+        // Geography mode - use geographies
+        series = getUniqueGeographies(filtered)
       }
     }
 

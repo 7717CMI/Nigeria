@@ -326,6 +326,21 @@ export function D3BubbleChartIndependent({ title, height = 500 }: BubbleChartPro
       updateActiveFilters({ segments: [], advancedSegments: [] } as any)
     }
   }, [activeFilters.businessType, selectedSegmentType, hasB2BSegmentation, isOpportunityMode, selectedSegments.length, updateActiveFilters])
+
+  // Reset segment type when switching to volume if current type is not allowed
+  const volumeAllowedTypes = ['By Formulation', 'By Type']
+  useEffect(() => {
+    if (isOpportunityMode && activeFilters.dataType === 'volume' && activeFilters.segmentType && !volumeAllowedTypes.includes(activeFilters.segmentType)) {
+      // Reset to By Formulation when switching to volume with an invalid segment type
+      setCascadePath([])
+      setSelectedSegments([])
+      updateActiveFilters({
+        segmentType: 'By Formulation',
+        segments: [],
+        advancedSegments: []
+      } as any)
+    }
+  }, [activeFilters.dataType, activeFilters.segmentType, isOpportunityMode])
   
   // Handle cascade filter selection (opportunity mode)
   const handleCascadeSelection = (path: string[]) => {
@@ -1230,7 +1245,7 @@ export function D3BubbleChartIndependent({ title, height = 500 }: BubbleChartPro
                 if (isOpportunityMode) {
                   setCascadePath([])
                   setSelectedSegments([])
-                  updateActiveFilters({ 
+                  updateActiveFilters({
                     segmentType: newSegmentType,
                     segments: [],
                     advancedSegments: []
@@ -1241,10 +1256,18 @@ export function D3BubbleChartIndependent({ title, height = 500 }: BubbleChartPro
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-black"
             >
-              {isOpportunityMode && (
+              {isOpportunityMode && activeFilters.dataType !== 'volume' && (
                 <option value="">All Product Types</option>
               )}
-              {data?.dimensions?.segments ? Object.keys(data.dimensions.segments).map(option => (
+              {data?.dimensions?.segments ? Object.keys(data.dimensions.segments)
+                // Filter segment types for volume: only show By Formulation and By Type
+                .filter(option => {
+                  if (activeFilters.dataType === 'volume') {
+                    return option === 'By Formulation' || option === 'By Type'
+                  }
+                  return true
+                })
+                .map(option => (
                 <option key={option} value={option}>
                   {option}
                 </option>

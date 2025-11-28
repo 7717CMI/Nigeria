@@ -31,19 +31,54 @@ export function MultiLineChart({ title, height = 400 }: MultiLineChartProps) {
       : data.data.volume.geography_segment_matrix
 
     const filtered = filterData(dataset, filters)
-    // Use intelligent multi-level data when aggregationLevel is null (automatic mode)
-    // This allows displaying data from different levels together on one graph
-    const prepared = filters.aggregationLevel === null
-      ? prepareIntelligentMultiLevelData(filtered, filters)
-      : prepareLineChartData(filtered, filters)
+
+    // Determine effective aggregation level for chart preparation
+    // When no segments are selected for the current segment type, default to Level 2
+    let effectiveAggregationLevel = filters.aggregationLevel
+    if (effectiveAggregationLevel === null || effectiveAggregationLevel === undefined) {
+      const advancedSegments = filters.advancedSegments || []
+      const segmentsFromSameType = advancedSegments.filter(
+        (seg: any) => seg.type === filters.segmentType
+      )
+      const hasSegmentsForCurrentType = segmentsFromSameType.length > 0
+
+      if (!hasSegmentsForCurrentType) {
+        // No segments selected - use Level 2 to show parent segments aggregated
+        effectiveAggregationLevel = 2
+      }
+    }
+
+    // Use prepareLineChartData when we have an effective aggregation level
+    // This ensures parent segments are shown instead of sub-segments when no segment is selected
+    const prepared = effectiveAggregationLevel !== null
+      ? prepareLineChartData(filtered, filters)
+      : prepareIntelligentMultiLevelData(filtered, filters)
+
+    // Extract series from prepared data keys instead of from filtered records
+    // This ensures we use the aggregated keys (e.g., "Parenteral") not the original segment names
+    const extractSeriesFromPreparedData = (): string[] => {
+      if (prepared.length === 0) return []
+
+      // Get all unique keys from prepared data (excluding 'year')
+      const allKeys = new Set<string>()
+      prepared.forEach(dataPoint => {
+        Object.keys(dataPoint).forEach(key => {
+          if (key !== 'year') {
+            allKeys.add(key)
+          }
+        })
+      })
+
+      return Array.from(allKeys)
+    }
 
     // Determine series based on view mode and selections
     let series: string[] = []
-    
+
     if (filters.viewMode === 'segment-mode') {
-      // When multiple geographies are selected, each line represents a segment
-      // aggregating all selected geographies
-      series = getUniqueSegments(filtered)
+      // For segment mode with Level 2 aggregation, extract keys from prepared data
+      // This ensures we get "Parenteral" instead of "Intravenous", "Intramuscular", etc.
+      series = extractSeriesFromPreparedData()
     } else if (filters.viewMode === 'geography-mode') {
       // When multiple segments are selected, each line represents a geography
       // aggregating all selected segments
@@ -64,7 +99,8 @@ export function MultiLineChart({ title, height = 400 }: MultiLineChartProps) {
       series: series,
       viewMode: filters.viewMode,
       geographies: filters.geographies,
-      segments: filters.segments
+      segments: filters.segments,
+      effectiveAggregationLevel
     })
 
     return { data: prepared, series }
