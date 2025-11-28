@@ -294,10 +294,12 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
           ...(newFilters.dataType !== undefined && { dataType: newFilters.dataType || 'value' }),
           ...(newFilters.viewMode !== undefined && { viewMode: newFilters.viewMode || 'segment-mode' }),
           ...(newFilters.businessType !== undefined && { businessType: newFilters.businessType }),
+          // CRITICAL: Handle advancedSegments for sub-segment filtering
+          ...((newFilters as any).advancedSegments !== undefined && { advancedSegments: (newFilters as any).advancedSegments || [] }),
           // Preserve aggregationLevel if not explicitly changed
           aggregationLevel: newFilters.aggregationLevel !== undefined ? newFilters.aggregationLevel : state.filters.aggregationLevel
         }
-        
+
         console.log('🔧 Store: Segment type changed, saved/restored geographies:', {
           oldSegmentType,
           newSegmentType,
@@ -331,12 +333,15 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
         ...(newFilters.dataType !== undefined && { dataType: newFilters.dataType || 'value' }),
         ...(newFilters.viewMode !== undefined && { viewMode: newFilters.viewMode || 'segment-mode' }),
         ...(newFilters.businessType !== undefined && { businessType: newFilters.businessType }),
+        // CRITICAL: Handle advancedSegments for sub-segment filtering
+        ...((newFilters as any).advancedSegments !== undefined && { advancedSegments: (newFilters as any).advancedSegments || [] }),
         // Preserve aggregationLevel if not explicitly changed
         aggregationLevel: newFilters.aggregationLevel !== undefined ? newFilters.aggregationLevel : state.filters.aggregationLevel
       }
       console.log('🔧 Store: Updated filters:', {
         ...updatedFilters,
-        aggregationLevel: updatedFilters.aggregationLevel
+        aggregationLevel: updatedFilters.aggregationLevel,
+        advancedSegments: (updatedFilters as any).advancedSegments
       })
       return {
         filters: updatedFilters,

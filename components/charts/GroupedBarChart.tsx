@@ -33,14 +33,49 @@ export function GroupedBarChart({ title, height = 400 }: GroupedBarChartProps) {
       ? data.data.value.geography_segment_matrix
       : data.data.volume.geography_segment_matrix
 
+    // IMPORTANT: Determine effective aggregation level BEFORE filtering
+    // This ensures filterData uses the correct logic based on user's segment selection
+    const advancedSegments = filters.advancedSegments || []
+    const segmentsFromSameType = advancedSegments.filter(
+      (seg: any) => seg.type === filters.segmentType
+    )
+    const hasUserSelectedSegments = segmentsFromSameType.length > 0
+
+    // Determine effective aggregation level for BOTH filtering and chart preparation
+    // When user selects a parent segment (like "Parenteral"), we want to show its children
+    // (Intravenous, Intramuscular, Subcutaneous) as separate bars, NOT aggregate them
+    let effectiveAggregationLevel: number | null = filters.aggregationLevel ?? null
+
+    // CRITICAL: When user has explicitly selected segments, ALWAYS use null
+    // This prevents any Level 2 aggregation and shows individual sub-segments
+    if (hasUserSelectedSegments) {
+      // User selected segments - show individual records (children of selected parents)
+      effectiveAggregationLevel = null
+    } else if (effectiveAggregationLevel === null) {
+      // No segments selected - use Level 2 to show parent segments aggregated
+      effectiveAggregationLevel = 2
+    }
+
     console.log('📊 Chart Data Debug:', {
       totalDataset: dataset.length,
-      filters: filters,
-      sampleData: dataset.slice(0, 2)
+      hasUserSelectedSegments,
+      effectiveAggregationLevel,
+      segmentsFromSameType: segmentsFromSameType.map((s: any) => s.segment),
+      advancedSegments: advancedSegments.map((s: any) => ({ type: s.type, segment: s.segment })),
+      filtersSegmentType: filters.segmentType,
+      filtersAggregationLevel: filters.aggregationLevel,
+      willCallFunction: effectiveAggregationLevel !== null ? 'prepareGroupedBarData' : 'prepareIntelligentMultiLevelData'
     })
 
-    // Filter data
-    let filtered = filterData(dataset, filters)
+    // Create modified filters with the effective aggregation level
+    // This ensures filterData uses our computed level, not the raw filter value
+    const modifiedFilters = {
+      ...filters,
+      aggregationLevel: effectiveAggregationLevel
+    }
+
+    // Filter data with the correct effective aggregation level
+    let filtered = filterData(dataset, modifiedFilters)
 
     // If showLevel1Totals is enabled in geography mode, also include Level 1 aggregated records
     if (filters.viewMode === 'geography-mode' && filters.showLevel1Totals) {
@@ -58,43 +93,61 @@ export function GroupedBarChart({ title, height = 400 }: GroupedBarChartProps) {
       filtered = [...filtered, ...newLevel1Records]
     }
 
+    // Get unique segment names from filtered data
+    const allSegmentNames = [...new Set(filtered.map(r => r.segment))]
+
     console.log('📊 After filtering:', {
       filteredCount: filtered.length,
-      sampleFiltered: filtered.slice(0, 2)
+      effectiveAggregationLevel,
+      allSegmentNames,
+      hasUserSelectedSegments,
+      selectedSegments: segmentsFromSameType.map((s: any) => s.segment),
+      sampleFiltered: filtered.slice(0, 10).map(r => ({
+        segment: r.segment,
+        is_aggregated: r.is_aggregated,
+        aggregation_level: r.aggregation_level,
+        level_1: r.segment_hierarchy?.level_1,
+        level_2: r.segment_hierarchy?.level_2
+      }))
     })
 
-    // Determine effective aggregation level for chart preparation
-    // When user has selected segments, we should show them without forced aggregation
-    // When no segments are selected, default to Level 2 to show parent segments
-    let effectiveAggregationLevel = filters.aggregationLevel
-    const advancedSegments = filters.advancedSegments || []
-    const segmentsFromSameType = advancedSegments.filter(
-      (seg: any) => seg.type === filters.segmentType
-    )
-    const hasUserSelectedSegments = segmentsFromSameType.length > 0
+    // CRITICAL: Verify that when user selected a parent segment, we got the child records
+    // If we only have the parent segment in filtered data, something went wrong in filtering
+    if (hasUserSelectedSegments && segmentsFromSameType.length === 1) {
+      const selectedSegment = segmentsFromSameType[0].segment
+      // Check if filtered data contains the selected segment directly (bad) or its children (good)
+      const hasParentInData = allSegmentNames.includes(selectedSegment)
+      const hasOnlyParent = hasParentInData && allSegmentNames.length === 1
 
-    // IMPORTANT: If user has explicitly selected segments (via Add Segment button),
-    // set effectiveAggregationLevel to null to show sub-segments individually
-    // This ensures selecting "Parenteral" shows Intravenous, Intramuscular, Subcutaneous separately
-    if (hasUserSelectedSegments) {
-      // User selected segments - DON'T force Level 2, use null to show individual records
-      effectiveAggregationLevel = null
-    } else if (effectiveAggregationLevel === null || effectiveAggregationLevel === undefined) {
-      // No segments selected - use Level 2 to show parent segments aggregated
-      effectiveAggregationLevel = 2
+      if (hasOnlyParent) {
+        console.warn('⚠️ WARNING: Selected parent segment but only got parent in filtered data. Expected children!')
+        console.warn('This indicates filterData is not correctly finding child records via hierarchy matching.')
+      }
     }
 
     // Prepare chart data
     // Use prepareGroupedBarData when we have an effective aggregation level (handles Level 2 aggregation)
     // This ensures parent segments are shown instead of sub-segments when no segment is selected
     const prepared = effectiveAggregationLevel !== null
-      ? prepareGroupedBarData(filtered, filters)
-      : prepareIntelligentMultiLevelData(filtered, filters)
+      ? prepareGroupedBarData(filtered, modifiedFilters)
+      : prepareIntelligentMultiLevelData(filtered, modifiedFilters)
+
+    // Extract all keys from prepared data
+    const allPreparedKeys = new Set<string>()
+    prepared.forEach(dp => {
+      Object.keys(dp).forEach(k => {
+        if (k !== 'year') allPreparedKeys.add(k)
+      })
+    })
 
     console.log('📊 Prepared chart data:', {
       preparedLength: prepared.length,
+      preparedKeys: [...allPreparedKeys],
       samplePrepared: prepared.slice(0, 2),
-      effectiveAggregationLevel
+      effectiveAggregationLevel,
+      hasUserSelectedSegments,
+      advancedSegments: filters.advancedSegments,
+      usingFunction: effectiveAggregationLevel !== null ? 'prepareGroupedBarData' : 'prepareIntelligentMultiLevelData'
     })
 
     // Determine if we're using stacked bars

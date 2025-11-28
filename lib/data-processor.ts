@@ -222,6 +222,7 @@ export function filterData(
 
           // Direct match - exact segment name
           if (seg.segment === record.segment) {
+            console.log('🔍 SEGMENT FILTER: Direct match:', { recordSegment: record.segment, selectedSegment: seg.segment })
             return true
           }
 
@@ -232,11 +233,21 @@ export function filterData(
 
           // Check if the selected segment is at any level in this record's hierarchy
           // This allows selecting a parent segment to include all its children
-          if (hierarchy.level_1 === seg.segment ||
+          const hierarchyMatch = hierarchy.level_1 === seg.segment ||
               hierarchy.level_2 === seg.segment ||
               hierarchy.level_3 === seg.segment ||
               hierarchy.level_4 === seg.segment ||
-              (hierarchy.level_5 && hierarchy.level_5 === seg.segment)) {
+              (hierarchy.level_5 && hierarchy.level_5 === seg.segment)
+
+          if (hierarchyMatch) {
+            console.log('🔍 SEGMENT FILTER: Hierarchy match:', {
+              recordSegment: record.segment,
+              selectedSegment: seg.segment,
+              level_1: hierarchy.level_1,
+              level_2: hierarchy.level_2,
+              is_aggregated: record.is_aggregated,
+              aggregation_level: record.aggregation_level
+            })
             return true
           }
 
@@ -1313,15 +1324,29 @@ export function prepareIntelligentMultiLevelData(
 ): ChartDataPoint[] {
   const { yearRange, viewMode, segments } = filters
   const [startYear, endYear] = yearRange
-  
+
   const years: number[] = []
   for (let year = startYear; year <= endYear; year++) {
     years.push(year)
   }
 
+  // DEBUG: Log what records we received
+  console.log('📊 prepareIntelligentMultiLevelData received:', {
+    recordCount: records.length,
+    viewMode,
+    recordSegments: records.map(r => r.segment),
+    recordDetails: records.slice(0, 5).map(r => ({
+      segment: r.segment,
+      is_aggregated: r.is_aggregated,
+      aggregation_level: r.aggregation_level,
+      level_1: r.segment_hierarchy?.level_1,
+      level_2: r.segment_hierarchy?.level_2
+    }))
+  })
+
   // Group records by segment (or geography) and find the best representation
   const segmentGroups = new Map<string, DataRecord[]>()
-  
+
   records.forEach(record => {
     const key = viewMode === 'segment-mode' ? record.segment : record.geography
     if (!segmentGroups.has(key)) {
@@ -1329,6 +1354,9 @@ export function prepareIntelligentMultiLevelData(
     }
     segmentGroups.get(key)!.push(record)
   })
+
+  // DEBUG: Log the grouping keys
+  console.log('📊 prepareIntelligentMultiLevelData grouping keys:', Array.from(segmentGroups.keys()))
 
   return years.map(year => {
     const dataPoint: ChartDataPoint = { year }
