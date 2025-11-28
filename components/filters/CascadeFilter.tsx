@@ -36,18 +36,32 @@ export function CascadeFilter({
     if (Object.keys(hierarchy).length === 0) {
       return []
     }
-    
+
     if (level === 0) {
-      // Level 1: Get root items (items that are not children of any other item)
+      // Level 1: Get root items (items that are not children of any other item,
+      // EXCEPT when they are children only of themselves - self-referencing leaf nodes)
       const allChildren = new Set<string>()
-      Object.values(hierarchy).forEach(children => {
+      const selfReferencingItems = new Set<string>()
+
+      Object.entries(hierarchy).forEach(([parent, children]) => {
         if (Array.isArray(children)) {
-          children.forEach(child => allChildren.add(child))
+          children.forEach(child => {
+            // Check if this is a self-reference (parent contains only itself as child)
+            if (child === parent && children.length === 1) {
+              selfReferencingItems.add(child)
+            } else {
+              allChildren.add(child)
+            }
+          })
         }
       })
-      
-      const roots = Object.keys(hierarchy).filter(key => !allChildren.has(key))
-      
+
+      // Root items are: keys that are NOT in allChildren,
+      // OR keys that are self-referencing (only child of themselves)
+      const roots = Object.keys(hierarchy).filter(key =>
+        !allChildren.has(key) || selfReferencingItems.has(key)
+      )
+
       // If no roots found, use all keys as roots (flat structure)
       const finalRoots = roots.length > 0 ? roots : Object.keys(hierarchy)
       
