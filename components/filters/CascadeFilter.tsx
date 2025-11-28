@@ -31,6 +31,19 @@ export function CascadeFilter({
     setCurrentPath(selectedPath || [])
   }, [selectedPath])
 
+  // Helper function to check if an item has real children (not just self-reference)
+  const hasRealChildren = (item: string): boolean => {
+    const children = hierarchy[item]
+    if (!children || !Array.isArray(children) || children.length === 0) {
+      return false
+    }
+    // Check if the only child is itself (self-referencing)
+    if (children.length === 1 && children[0] === item) {
+      return false
+    }
+    return true
+  }
+
   // Get options for a specific level based on current path
   const getLevelOptions = (level: number): LevelOption[] => {
     if (Object.keys(hierarchy).length === 0) {
@@ -64,12 +77,12 @@ export function CascadeFilter({
 
       // If no roots found, use all keys as roots (flat structure)
       const finalRoots = roots.length > 0 ? roots : Object.keys(hierarchy)
-      
+
       // Deduplicate: Use Set to track unique segment names
       // We only want to show each unique segment name once
       const seen = new Set<string>()
       const uniqueOptions: LevelOption[] = []
-      
+
       finalRoots.forEach(root => {
         // Only add if we haven't seen this segment name before
         if (!seen.has(root)) {
@@ -77,11 +90,11 @@ export function CascadeFilter({
           uniqueOptions.push({
             value: root,
             label: root,
-            hasChildren: hierarchy[root] && Array.isArray(hierarchy[root]) && hierarchy[root].length > 0
+            hasChildren: hasRealChildren(root)
           })
         }
       })
-      
+
       return uniqueOptions
     } else {
       // Level 2+: Get children of the selected parent at previous level
@@ -191,8 +204,13 @@ export function CascadeFilter({
   // Check if a level should be shown
   const shouldShowLevel = (level: number): boolean => {
     if (level === 0) return true
-    // Show level N if level N-1 has a selection
-    return currentPath.length >= level && currentPath[level - 1] !== ''
+    // Show level N if level N-1 has a selection AND that selection has real children
+    if (currentPath.length < level || currentPath[level - 1] === '') {
+      return false
+    }
+    // Check if the selected item at previous level has real children
+    const selectedItem = currentPath[level - 1]
+    return hasRealChildren(selectedItem)
   }
 
   // Get the selected value for display
@@ -265,8 +283,8 @@ export function CascadeFilter({
                 ))}
               </select>
               
-              {/* Show arrow indicator if there's a selection and more levels available */}
-              {hasSelection && level < maxAvailableLevels - 1 && (
+              {/* Show arrow indicator if there's a selection and it has real children */}
+              {hasSelection && hasRealChildren(selectedValue) && (
                 <div className="flex justify-center py-1">
                   <ChevronRight className="h-4 w-4 text-black" />
                 </div>

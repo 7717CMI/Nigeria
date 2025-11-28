@@ -190,23 +190,6 @@ export function EnhancedFilterPanel() {
   
   const hierarchicalOptions = getHierarchicalOptions()
   
-  // Debug logging
-  useEffect(() => {
-    if (data && selectedSegmentType) {
-      const segmentDim = data.dimensions.segments[selectedSegmentType]
-      console.log('Step 2 Filter Debug:', {
-        selectedSegmentType,
-        hasSegmentDimension: !!segmentDim,
-        itemsCount: segmentDim?.items?.length || 0,
-        hierarchyKeys: segmentDim?.hierarchy ? Object.keys(segmentDim.hierarchy).length : 0,
-        availableSegmentsCount: availableSegments.length,
-        hierarchicalOptionsCount: hierarchicalOptions.length,
-        businessType: filters.businessType,
-        hasB2BSegmentation
-      })
-    }
-  }, [data, selectedSegmentType, availableSegments.length, hierarchicalOptions.length, filters.businessType, hasB2BSegmentation])
-
   // Add segment to selection
   const handleAddSegment = () => {
     if (!currentSegmentSelection) return
@@ -226,7 +209,6 @@ export function EnhancedFilterPanel() {
       setSelectedSegments(updated)
       
       // Update store with segment names AND the full advanced segments data
-      console.log('🔧 EnhancedFilterPanel: Adding segment, preserving aggregationLevel:', filters.aggregationLevel)
       updateFilters({ 
         segments: updated.map(s => s.segment) || [],
         segmentType: selectedSegmentType || '', // Keep this for compatibility
@@ -243,7 +225,6 @@ export function EnhancedFilterPanel() {
   const handleRemoveSegment = (id: string) => {
     const updated = selectedSegments.filter(s => s.id !== id)
     setSelectedSegments(updated)
-    console.log('🔧 EnhancedFilterPanel: Removing segment, preserving aggregationLevel:', filters.aggregationLevel)
     updateFilters({ 
       segments: updated.map(s => s.segment) || [],
       advancedSegments: updated || [], // Pass the full segment+type data
@@ -255,7 +236,6 @@ export function EnhancedFilterPanel() {
   const handleClearAllSegments = () => {
     setSelectedSegments([])
     setCurrentSegmentSelection('')
-    console.log('🔧 EnhancedFilterPanel: Clearing all segments, preserving aggregationLevel:', filters.aggregationLevel)
     updateFilters({ 
       segments: [], 
       advancedSegments: [],

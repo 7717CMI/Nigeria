@@ -695,15 +695,31 @@ async function processSegmentTypeAsync(
         // Build segment items and hierarchy from structure (not just paths with data)
         structurePaths.forEach(({ path: pathArray }) => {
           const segmentPath = pathArray.slice(segmentTypeIndex + 1)
-          
+
           // Build hierarchy from structure
+          // First, ensure all first-level items are in the hierarchy
+          if (segmentPath.length > 0 && segmentPath[0] && segmentPath[0].trim() !== '') {
+            const firstLevel = segmentPath[0]
+            if (!segmentItems.includes(firstLevel)) {
+              segmentItems.push(firstLevel)
+            }
+            if (!hierarchy[firstLevel]) {
+              hierarchy[firstLevel] = []
+            }
+
+            // For self-referencing items (e.g., Oral -> Oral), add self as child
+            if (segmentPath.length === 2 && segmentPath[0] === segmentPath[1]) {
+              if (!hierarchy[firstLevel].includes(firstLevel)) {
+                hierarchy[firstLevel].push(firstLevel)
+              }
+            }
+          }
+
+          // Build the rest of the hierarchy
           segmentPath.forEach((seg, index) => {
             if (seg && seg.trim() !== '') { // Only add non-empty segments
               if (index === 0) {
-                if (!segmentItems.includes(seg)) {
-                  segmentItems.push(seg) // Add all segments from structure
-                }
-                if (!hierarchy[seg]) hierarchy[seg] = []
+                // Already handled above
               } else {
                 const parent = segmentPath[index - 1]
                 if (parent && parent.trim() !== '') {
@@ -755,16 +771,17 @@ async function processSegmentTypeAsync(
   if (structureData) {
     await extractSegmentsFromSource(structureData, 'structureData')
   }
-  
-  // If no segments found in structure, try extracting from valueData
-  if (segmentItems.length === 0 && valueData) {
-    console.log('No segments found in structureData, trying valueData...')
+
+  // ALWAYS also extract from valueData to catch segments that might only exist there
+  // (e.g., self-referencing items like Oral -> Oral that might not be in structureData)
+  if (valueData) {
+    console.log('Also extracting from valueData to ensure complete hierarchy...')
     await extractSegmentsFromSource(valueData, 'valueData')
   }
-  
-  // If still no segments, try volumeData
-  if (segmentItems.length === 0 && volumeData) {
-    console.log('No segments found in valueData, trying volumeData...')
+
+  // Also extract from volumeData if available
+  if (volumeData) {
+    console.log('Also extracting from volumeData to ensure complete hierarchy...')
     await extractSegmentsFromSource(volumeData, 'volumeData')
   }
   
