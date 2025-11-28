@@ -82,10 +82,10 @@ export function YearRangeSlider() {
 
       {/* Dual Range Slider */}
       <div className="px-2">
-        <div className="relative pt-8 pb-4">
+        <div className="relative pt-2 pb-4">
           {/* Min Slider */}
-          <div className="relative mb-6">
-            <label className="text-xs text-black absolute -top-5">From:</label>
+          <div className="relative mb-8">
+            <label className="text-xs text-black mb-1 block">From:</label>
             <input
               type="range"
               min={start_year}
@@ -100,7 +100,7 @@ export function YearRangeSlider() {
 
           {/* Max Slider */}
           <div className="relative">
-            <label className="text-xs text-black absolute -top-5">To:</label>
+            <label className="text-xs text-black mb-1 block">To:</label>
             <input
               type="range"
               min={start_year}
