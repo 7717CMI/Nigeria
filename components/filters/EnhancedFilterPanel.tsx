@@ -58,6 +58,22 @@ export function EnhancedFilterPanel() {
       setSelectedSegmentType(firstSegmentType)
     }
   }, [filters.segmentType, data])
+
+  // Reset segment type when switching to volume if current type is not available
+  const volumeAllowedTypes = ['By Formulation', 'By Type']
+  useEffect(() => {
+    if (filters.dataType === 'volume' && !volumeAllowedTypes.includes(selectedSegmentType)) {
+      // Reset to By Formulation when switching to volume with an invalid segment type
+      setSelectedSegmentType('By Formulation')
+      setSelectedSegments([])
+      setCascadePath([])
+      setCurrentSegmentSelection('')
+      updateFilters({
+        segmentType: 'By Formulation',
+        segments: []
+      })
+    }
+  }, [filters.dataType])
   
   // Clear selected segments when business type changes and segment type has B2B/B2C
   const segmentDimension = data?.dimensions?.segments?.[selectedSegmentType]
@@ -260,7 +276,11 @@ export function EnhancedFilterPanel() {
 
   if (!data) return null
 
-  const segmentTypes = Object.keys(data.dimensions.segments)
+  // Get all segment types, but filter for volume to only show By Formulation and By Type
+  const allSegmentTypes = Object.keys(data.dimensions.segments)
+  const segmentTypes = filters.dataType === 'volume'
+    ? allSegmentTypes.filter(type => type === 'By Formulation' || type === 'By Type')
+    : allSegmentTypes
 
   return (
     <div className="bg-white rounded-lg shadow-sm p-2.5 space-y-2">
