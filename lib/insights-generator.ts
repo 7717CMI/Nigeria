@@ -22,14 +22,15 @@ export interface Insight {
 export function generateInsights(
   records: DataRecord[],
   filters: FilterState,
-  currency: 'USD' | 'INR' = 'USD'
+  currency: 'USD' | 'INR' = 'USD',
+  volumeUnit: string = 'Million Units'
 ): Insight[] {
   const insights: Insight[] = []
   
   if (records.length === 0) return insights
 
   // 1. Top Performer Analysis
-  const topPerformer = findTopPerformer(records, filters, currency)
+  const topPerformer = findTopPerformer(records, filters, currency, volumeUnit)
   if (topPerformer) insights.push(topPerformer)
 
   // 2. Growth Leader
@@ -58,7 +59,7 @@ export function generateInsights(
 /**
  * Find the top performing geography or segment
  */
-function findTopPerformer(records: DataRecord[], filters: FilterState, currency: 'USD' | 'INR' = 'USD'): Insight | null {
+function findTopPerformer(records: DataRecord[], filters: FilterState, currency: 'USD' | 'INR' = 'USD', volumeUnit: string = 'Million Units'): Insight | null {
   const [startYear, endYear] = filters.yearRange
   const currentYear = endYear
   
@@ -100,7 +101,7 @@ function findTopPerformer(records: DataRecord[], filters: FilterState, currency:
       valueDisplay = `${(topValue / 1000000).toFixed(2)} USD Mn`
     }
   } else {
-    valueDisplay = `${topValue.toFixed(1)} KT`
+    valueDisplay = `${topValue.toFixed(1)} ${volumeUnit}`
   }
   
   return {

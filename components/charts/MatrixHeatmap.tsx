@@ -128,7 +128,7 @@ export function MatrixHeatmap({ title, height = 600 }: MatrixHeatmapProps) {
           {title || 'Matrix View - Geography × Segment Comparison'}
         </h3>
         <p className="text-sm text-black mt-1">
-          Years: {startYear} - {endYear} | Values in {valueUnit}
+          Years: {startYear} - {endYear} | {filters.dataType === 'value' ? 'Values' : 'Volume'} in {valueUnit}
         </p>
       </div>
 
