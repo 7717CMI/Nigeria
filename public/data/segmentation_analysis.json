@@ -1,0 +1,25 @@
+{
+  "Nigeria": {
+    "By Formulation": {},
+    "By Molecule Type": {
+      "Biologics & Biosimilars (Large Molecules)": {
+        "Monoclonal Antibodies": {},
+        "Vaccines": {},
+        "Cell & Gene Therapy": {},
+        "Others (Hormone Therapies, etc.)": {}
+      }
+    },
+    "By Type": {},
+    "By Product": {},
+    "By Route of Administration": {
+      "Parenteral": {
+        "Intravenous": {},
+        "Intramuscular": {},
+        "Subcutaneous": {}
+      }
+    },
+    "By Age Group": {},
+    "By Distribution Channel": {},
+    "By End User": {}
+  }
+}
