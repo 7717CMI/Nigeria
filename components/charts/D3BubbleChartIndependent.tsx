@@ -474,7 +474,7 @@ export function D3BubbleChartIndependent({ title, height = 500 }: BubbleChartPro
 
       // Use filterData to apply all filters consistently with other charts
       let filteredRecords = filterData(dataset, activeFilters)
-      
+
       console.log('🎯 After filterData:', {
         before: dataset.length,
         after: filteredRecords.length,
@@ -487,8 +487,75 @@ export function D3BubbleChartIndependent({ title, height = 500 }: BubbleChartPro
         sampleAfterFilter: filteredRecords[0]
       })
 
-      // filterData already handles all filtering including segments, so no need for additional steps
-      
+      // When specific segments are selected, aggregate children into parent bubbles
+      // This ensures "Parenteral" shows as ONE bubble (sum of Intravenous + Intramuscular + Subcutaneous)
+      if (activeFilters.segments && activeFilters.segments.length > 0) {
+        const selectedSegmentNames = activeFilters.segments
+
+        // For each selected segment, aggregate its children or find exact match
+        const aggregatedRecords: typeof filteredRecords = []
+
+        selectedSegmentNames.forEach(segmentName => {
+          // First check if there's an exact match (leaf segment selected)
+          const exactMatches = filteredRecords.filter(r => r.segment === segmentName)
+
+          if (exactMatches.length > 0) {
+            // Exact match found, use it
+            aggregatedRecords.push(...exactMatches)
+            console.log('🎯 Exact segment match found:', segmentName, exactMatches.length)
+          } else {
+            // No exact match - this is a parent segment
+            // Find all records where this segment is in their hierarchy (level_1, level_2, etc.)
+            const childRecords = filteredRecords.filter(r => {
+              const hierarchy = r.segment_hierarchy
+              if (!hierarchy) return false
+              return (
+                hierarchy.level_1 === segmentName ||
+                hierarchy.level_2 === segmentName ||
+                hierarchy.level_3 === segmentName ||
+                hierarchy.level_4 === segmentName ||
+                (hierarchy.level_5 && hierarchy.level_5 === segmentName)
+              )
+            })
+
+            console.log('🎯 Looking for children of:', segmentName, 'found:', childRecords.length)
+
+            if (childRecords.length > 0) {
+              // Aggregate time series from all children
+              const aggregatedTimeSeries: { [year: string]: number } = {}
+              childRecords.forEach(record => {
+                Object.entries(record.time_series).forEach(([year, value]) => {
+                  aggregatedTimeSeries[year] = (aggregatedTimeSeries[year] || 0) + (value as number)
+                })
+              })
+
+              // Create aggregated record for the parent
+              const aggregatedRecord = {
+                ...childRecords[0],
+                segment: segmentName, // Use parent name
+                time_series: aggregatedTimeSeries,
+                is_aggregated: true
+              }
+              aggregatedRecords.push(aggregatedRecord as any)
+
+              console.log('🎯 Aggregated parent segment:', {
+                parentName: segmentName,
+                childrenFound: childRecords.length,
+                childSegments: childRecords.map(r => r.segment),
+                aggregatedTimeSeries
+              })
+            }
+          }
+        })
+
+        filteredRecords = aggregatedRecords
+        console.log('🎯 After segment aggregation:', {
+          selectedSegments: selectedSegmentNames,
+          recordsAfterAggregation: filteredRecords.length,
+          resultSegments: [...new Set(filteredRecords.map(r => r.segment))]
+        })
+      }
+
       // Final validation with detailed debugging
       if (filteredRecords.length === 0) {
         // Get unique values for error reporting
@@ -561,37 +628,33 @@ export function D3BubbleChartIndependent({ title, height = 500 }: BubbleChartPro
       const bubbles: BubbleDataPoint[] = []
       const [startYear, endYear] = activeFilters.yearRange
       
+      // Helper function to calculate CAGR from time series
+      const calculateCAGR = (startValue: number, endValue: number, years: number): number => {
+        if (startValue <= 0 || endValue <= 0 || years <= 0) return 0
+        const cagr = (Math.pow(endValue / startValue, 1 / years) - 1) * 100
+        return Math.min(cagr, 100) // Cap at 100%
+      }
+
       // Calculate max values for normalization
       let maxCAGR = 0
       let maxValue = 0
-      
+      const years = endYear - startYear
+
       filteredRecords.forEach(record => {
-        const cagr = record.cagr || 0
         const value = record.time_series[endYear] || 0
+        const baseValue = record.time_series[startYear] || 0
+        const cagr = calculateCAGR(baseValue, value, years)
         maxCAGR = Math.max(maxCAGR, Math.abs(cagr))
         maxValue = Math.max(maxValue, value)
       })
 
       filteredRecords.forEach((record, index) => {
-        // Parse CAGR - it might be a string like "9.5%" or a number
-        // Note: DataRecord defines cagr as number, but JSON data may have it as string
-        let cagr = 0
-        if (record.cagr !== null && record.cagr !== undefined) {
-          // Type assertion to handle both string and number types
-          const cagrValue = record.cagr as unknown as number | string
-          if (typeof cagrValue === 'string') {
-            // Remove % and parse
-            cagr = parseFloat(cagrValue.replace('%', '').trim()) || 0
-          } else if (typeof cagrValue === 'number' && !isNaN(cagrValue)) {
-            cagr = cagrValue
-          }
-        }
-        
         const value = record.time_series[endYear] || 0
         const baseValue = record.time_series[startYear] || 0
-        
-        // Normalize to 0-100 scale
-        const cagrIndex = maxCAGR > 0 ? (Math.abs(cagr) / maxCAGR) * 100 : 0
+        const cagr = calculateCAGR(baseValue, value, years)
+
+        // Normalize CAGR to 0-20 scale (for X-axis), Market Size to 0-100 scale (for Y-axis)
+        const cagrIndex = maxCAGR > 0 ? (Math.abs(cagr) / maxCAGR) * 20 : 0
         const valueIndex = maxValue > 0 ? (value / maxValue) * 100 : 0
         
         // For Level 1 with __ALL_SEGMENTS__, use segment_type
@@ -989,9 +1052,9 @@ export function D3BubbleChartIndependent({ title, height = 500 }: BubbleChartPro
     const maxRadius = Math.max(...chartData.bubbles.map(b => b.radius))
     const padding = maxRadius * 0.8
 
-    // X scale - CAGR Index (0-100)
+    // X scale - CAGR Index (0-20)
     const xScale = d3.scaleLinear()
-      .domain([0, 110]) // Fixed 0-110 for index (with 10% padding)
+      .domain([0, 20]) // Fixed 0-20 for index
       .range([padding, width - padding])
 
     // Y scale - Market Share Index (0-100)
@@ -1026,11 +1089,15 @@ export function D3BubbleChartIndependent({ title, height = 500 }: BubbleChartPro
     const xAxis = d3.axisBottom(xScale)
       .tickFormat(d => `${(d as number).toFixed(0)}`)
 
-    g.append('g')
+    const xAxisGroup = g.append('g')
       .attr('transform', `translate(0,${height - padding})`)
       .call(xAxis)
       .style('font-size', '10px')
-      .append('text')
+
+    xAxisGroup.selectAll('text')
+      .style('fill', '#000000')
+
+    xAxisGroup.append('text')
       .attr('x', width / 2)
       .attr('y', 35)
       .attr('fill', '#000000')
@@ -1043,11 +1110,15 @@ export function D3BubbleChartIndependent({ title, height = 500 }: BubbleChartPro
     const yAxis = d3.axisLeft(yScale)
       .tickFormat(d => `${(d as number).toFixed(0)}`)
 
-    g.append('g')
+    const yAxisGroup = g.append('g')
       .attr('transform', `translate(${padding},0)`)
       .call(yAxis)
       .style('font-size', '10px')
-      .append('text')
+
+    yAxisGroup.selectAll('text')
+      .style('fill', '#000000')
+
+    yAxisGroup.append('text')
       .attr('transform', 'rotate(-90)')
       .attr('y', -40)
       .attr('x', -height / 2)
