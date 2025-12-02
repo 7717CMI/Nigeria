@@ -487,70 +487,85 @@ export function D3BubbleChartIndependent({ title, height = 500 }: BubbleChartPro
         sampleAfterFilter: filteredRecords[0]
       })
 
-      // When specific segments are selected, aggregate children into parent bubbles
-      // This ensures "Parenteral" shows as ONE bubble (sum of Intravenous + Intramuscular + Subcutaneous)
+      // Handle segment aggregation based on whether segments are selected
       if (activeFilters.segments && activeFilters.segments.length > 0) {
+        // CASE 1: Specific segments are selected - show their children
         const selectedSegmentNames = activeFilters.segments
-
-        // For each selected segment, aggregate its children or find exact match
         const aggregatedRecords: typeof filteredRecords = []
 
         selectedSegmentNames.forEach(segmentName => {
-          // First check if there's an exact match (leaf segment selected)
-          const exactMatches = filteredRecords.filter(r => r.segment === segmentName)
+          // Find all records where this segment is in their hierarchy (these are the children)
+          const childRecords = filteredRecords.filter(r => {
+            const hierarchy = r.segment_hierarchy
+            if (!hierarchy) return false
+            return (
+              hierarchy.level_1 === segmentName ||
+              hierarchy.level_2 === segmentName ||
+              hierarchy.level_3 === segmentName ||
+              hierarchy.level_4 === segmentName ||
+              (hierarchy.level_5 && hierarchy.level_5 === segmentName)
+            )
+          })
 
-          if (exactMatches.length > 0) {
-            // Exact match found, use it
-            aggregatedRecords.push(...exactMatches)
-            console.log('🎯 Exact segment match found:', segmentName, exactMatches.length)
-          } else {
-            // No exact match - this is a parent segment
-            // Find all records where this segment is in their hierarchy (level_1, level_2, etc.)
-            const childRecords = filteredRecords.filter(r => {
-              const hierarchy = r.segment_hierarchy
-              if (!hierarchy) return false
-              return (
-                hierarchy.level_1 === segmentName ||
-                hierarchy.level_2 === segmentName ||
-                hierarchy.level_3 === segmentName ||
-                hierarchy.level_4 === segmentName ||
-                (hierarchy.level_5 && hierarchy.level_5 === segmentName)
-              )
-            })
+          console.log('🎯 Showing children of:', segmentName, 'found:', childRecords.length)
 
-            console.log('🎯 Looking for children of:', segmentName, 'found:', childRecords.length)
-
-            if (childRecords.length > 0) {
-              // Aggregate time series from all children
-              const aggregatedTimeSeries: { [year: string]: number } = {}
-              childRecords.forEach(record => {
-                Object.entries(record.time_series).forEach(([year, value]) => {
-                  aggregatedTimeSeries[year] = (aggregatedTimeSeries[year] || 0) + (value as number)
-                })
-              })
-
-              // Create aggregated record for the parent
-              const aggregatedRecord = {
-                ...childRecords[0],
-                segment: segmentName, // Use parent name
-                time_series: aggregatedTimeSeries,
-                is_aggregated: true
-              }
-              aggregatedRecords.push(aggregatedRecord as any)
-
-              console.log('🎯 Aggregated parent segment:', {
-                parentName: segmentName,
-                childrenFound: childRecords.length,
-                childSegments: childRecords.map(r => r.segment),
-                aggregatedTimeSeries
-              })
-            }
-          }
+          // Add all children as individual bubbles
+          aggregatedRecords.push(...childRecords)
         })
 
         filteredRecords = aggregatedRecords
-        console.log('🎯 After segment aggregation:', {
+        console.log('🎯 After showing children:', {
           selectedSegments: selectedSegmentNames,
+          recordsAfterFilter: filteredRecords.length,
+          resultSegments: [...new Set(filteredRecords.map(r => r.segment))]
+        })
+      } else {
+        // CASE 2: No segments selected - aggregate by Level 1 (parent segments)
+        // Group records by their level_1 segment (e.g., Parenteral, Oral, Topical)
+        const level1Groups = new Map<string, typeof filteredRecords>()
+
+        filteredRecords.forEach(record => {
+          const level1 = record.segment_hierarchy?.level_1
+          if (level1) {
+            if (!level1Groups.has(level1)) {
+              level1Groups.set(level1, [])
+            }
+            level1Groups.get(level1)!.push(record)
+          }
+        })
+
+        console.log('🎯 Aggregating by Level 1:', [...level1Groups.keys()])
+
+        // Create aggregated records for each Level 1 parent
+        const aggregatedRecords: typeof filteredRecords = []
+
+        level1Groups.forEach((childRecords, parentName) => {
+          // Aggregate time series from all children
+          const aggregatedTimeSeries: { [year: string]: number } = {}
+          childRecords.forEach(record => {
+            Object.entries(record.time_series).forEach(([year, value]) => {
+              aggregatedTimeSeries[year] = (aggregatedTimeSeries[year] || 0) + (value as number)
+            })
+          })
+
+          // Create aggregated record for the parent
+          const aggregatedRecord = {
+            ...childRecords[0],
+            segment: parentName, // Use parent name (e.g., "Parenteral")
+            time_series: aggregatedTimeSeries,
+            is_aggregated: true
+          }
+          aggregatedRecords.push(aggregatedRecord as any)
+
+          console.log('🎯 Aggregated Level 1 segment:', {
+            parentName,
+            childrenFound: childRecords.length,
+            childSegments: childRecords.map(r => r.segment)
+          })
+        })
+
+        filteredRecords = aggregatedRecords
+        console.log('🎯 After Level 1 aggregation:', {
           recordsAfterAggregation: filteredRecords.length,
           resultSegments: [...new Set(filteredRecords.map(r => r.segment))]
         })
