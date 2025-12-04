@@ -8,7 +8,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   Cell
 } from 'recharts'
@@ -260,25 +259,21 @@ export function WaterfallChart({ title, height = 400 }: WaterfallChartProps) {
       <ResponsiveContainer width="100%" height={height}>
         <BarChart
           data={chartData.data}
-          margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+          margin={{ top: 20, right: 30, left: 40, bottom: 60 }}
         >
           <CartesianGrid {...CHART_THEME.grid} />
-          <XAxis 
-            dataKey="name" 
+          <XAxis
+            dataKey="name"
             angle={-45}
             textAnchor="end"
             height={100}
             tick={{ fontSize: 12 }}
           />
-          <YAxis 
+          <YAxis
             tick={{ fontSize: 12 }}
-            label={{ value: yAxisLabel, angle: -90, position: 'insideLeft' }}
+            label={{ value: yAxisLabel, angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
           />
           <Tooltip content={<CustomTooltip />} />
-          <Legend 
-            wrapperStyle={{ paddingTop: '20px', color: '#000000' }}
-            formatter={(value) => <span style={{ color: '#000000' }}>{value}</span>}
-          />
           
           {/* Base bar (invisible, positions the visible bar) */}
           <Bar 

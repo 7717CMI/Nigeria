@@ -307,11 +307,11 @@ export function BubbleChart({ title, height = 500 }: BubbleChartProps) {
               return value.toFixed(0)
             }}
           />
-          <YAxis 
+          <YAxis
             type="number"
             dataKey="y"
             name="Market Share"
-            label={{ value: chartData.yLabel, angle: -90, position: 'insideLeft' }}
+            label={{ value: chartData.yLabel, angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
             domain={[Math.max(0, yMin - yPadding), yMax + yPadding]}
             tick={{ fontSize: 12 }}
             tickFormatter={(value) => {
