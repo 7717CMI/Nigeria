@@ -449,16 +449,16 @@ export function GroupedBarChart({ title, height = 400 }: GroupedBarChartProps) {
       )}
       
       <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={chartData.data}>
+        <BarChart data={chartData.data} margin={{ left: 20 }}>
           <CartesianGrid {...CHART_THEME.grid} />
-          <XAxis 
-            dataKey="year" 
+          <XAxis
+            dataKey="year"
             tick={{ fontSize: 12 }}
             label={{ value: 'Year', position: 'insideBottom', offset: -5 }}
           />
-          <YAxis 
+          <YAxis
             tick={{ fontSize: 12 }}
-            label={{ value: yAxisLabel, angle: -90, position: 'insideLeft' }}
+            label={{ value: yAxisLabel, angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
           />
           <Tooltip 
             content={<CustomTooltip />} 
