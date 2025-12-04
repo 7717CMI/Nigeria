@@ -51,8 +51,11 @@ export function GroupedBarChart({ title, height = 400 }: GroupedBarChartProps) {
     if (hasUserSelectedSegments) {
       // User selected segments - show individual records (children of selected parents)
       effectiveAggregationLevel = null
+    } else if (filters.viewMode === 'geography-mode') {
+      // Geography mode - keep null to show all leaf records for selected geographies
+      effectiveAggregationLevel = null
     } else if (effectiveAggregationLevel === null) {
-      // No segments selected - use Level 2 to show parent segments aggregated
+      // No segments selected in segment mode - use Level 2 to show parent segments aggregated
       effectiveAggregationLevel = 2
     }
 

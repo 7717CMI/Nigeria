@@ -83,8 +83,12 @@ export function filterData(
       // NOT the aggregated "Parenteral" record
       effectiveAggregationLevel = null
       console.log('🔍 filterData: User selected segments, setting effectiveAggregationLevel to null to show sub-segments')
+    } else if (filters.viewMode === 'geography-mode') {
+      // Geography mode - keep null to show all leaf records for selected geographies
+      effectiveAggregationLevel = null
+      console.log('🔍 filterData: Geography mode, setting effectiveAggregationLevel to null to show all records')
     } else {
-      // NO SEGMENTS SELECTED FOR THIS SEGMENT TYPE: Default to showing Level 1 segments only (aggregation_level 2)
+      // NO SEGMENTS SELECTED FOR THIS SEGMENT TYPE in segment mode: Default to showing Level 1 segments only (aggregation_level 2)
       // This ensures we don't show sub-segments when no specific segments are chosen for this type
       // For example: Show Oral, Parenteral, Topical, etc. but NOT Intravenous, Intramuscular, etc.
       effectiveAggregationLevel = 2
